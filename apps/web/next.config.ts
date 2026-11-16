@@ -3,7 +3,8 @@ import { loadEnvConfig } from "@next/env";
 import type { NextConfig } from "next";
 
 // Load the monorepo root .env so every app shares one config.
-loadEnvConfig(path.resolve(__dirname, "../.."));
+// forceReload: Next already loaded (and cached) env for the app folder; load the root .env instead.
+loadEnvConfig(path.resolve(__dirname, "../.."), process.env.NODE_ENV !== "production", console, true);
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@orbit/shared", "@orbit/ui"],

@@ -57,6 +57,7 @@ export function AdminSignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
+  const [enroll, setEnroll] = useState<{ ticket: string; otpauthUrl: string; secret: string } | null>(null);
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -67,10 +68,15 @@ export function AdminSignIn() {
     setError(null);
     setLoading(true);
     try {
-      if (!ticket) {
+      if (enroll) {
+        await api("/admin/auth/enroll", { json: { ticket: enroll.ticket, code } });
+        toast.success("Authenticator set up", { description: "You're signed in. Next time, just enter the code from your app." });
+        router.replace("/");
+      } else if (!ticket) {
         if (!EMAIL_RE.test(email.trim()) || !password) return;
-        const r = await api<{ ticket: string }>("/admin/auth/sign-in", { json: { email: email.trim(), password } });
-        setTicket(r.ticket);
+        const r = await api<{ ticket?: string; enroll?: { ticket: string; otpauthUrl: string; secret: string } }>("/admin/auth/sign-in", { json: { email: email.trim(), password } });
+        if (r.enroll) setEnroll(r.enroll);
+        else setTicket(r.ticket!);
         setTouched(false);
       } else {
         await api("/admin/auth/verify", { json: { ticket, code } });
@@ -79,7 +85,10 @@ export function AdminSignIn() {
       }
     } catch (err) {
       setError(errorMessage(err));
-      if (ticket && /expired/i.test(errorMessage(err))) setTicket(null);
+      if ((ticket || enroll) && /expired/i.test(errorMessage(err))) {
+        setTicket(null);
+        setEnroll(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -87,14 +96,26 @@ export function AdminSignIn() {
 
   return (
     <Shell
-      title={ticket ? "Two-factor authentication" : "Sign in"}
-      step={ticket ? "Step 2 of 2 · required for all admins" : "Step 1 of 2"}
-      icon={ticket ? <ShieldCheck className="size-5" /> : <Mail className="size-5" />}
+      title={enroll ? "Set up your authenticator" : ticket ? "Two-factor authentication" : "Sign in"}
+      step={enroll ? "One-time setup · 2FA is required for all admins" : ticket ? "Step 2 of 2 · required for all admins" : "Step 1 of 2"}
+      icon={enroll ? <Smartphone className="size-5" /> : ticket ? <ShieldCheck className="size-5" /> : <Mail className="size-5" />}
       footer={<>New staff member? <Link href="/sign-up" className="font-semibold text-white hover:underline">Request console access</Link></>}
     >
       {error && <Alert>{error}</Alert>}
       <form onSubmit={submit} noValidate className="space-y-5">
-        {!ticket ? (
+        {enroll ? (
+          <div key="enroll" className="animate-rise space-y-5">
+            <p className="text-sm text-text-muted">Scan this QR code with Google Authenticator, Authy or 1Password, then enter the 6-digit code it shows. You only do this once.</p>
+            <div className="flex justify-center">
+              <div className="rounded-2xl border border-border p-3"><QRCodeSVG value={enroll.otpauthUrl} size={176} fgColor="#0d0020" /></div>
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-xl bg-surface-alt px-3 py-2">
+              <code className="truncate text-xs">{enroll.secret}</code>
+              <CopyButton value={enroll.secret} label="Copy key" />
+            </div>
+            <Field label="6-digit code" icon={<KeyRound />} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="123456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} autoFocus />
+          </div>
+        ) : !ticket ? (
           <div key="cred" className="animate-fade space-y-5">
             <Field label="Work email" icon={<Mail />} type="email" autoComplete="username" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} error={touched && !EMAIL_RE.test(email.trim()) ? "Enter a valid email address." : undefined} />
             <PasswordField label="Password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} error={touched && !password ? "Enter your password." : undefined} />
@@ -107,8 +128,8 @@ export function AdminSignIn() {
             </button>
           </div>
         )}
-        <Button type="submit" fullWidth loading={loading} loadingText={ticket ? "Verifying…" : "Checking…"} disabled={!!ticket && code.length !== 6}>
-          {ticket ? "Verify and enter console" : "Continue"}
+        <Button type="submit" fullWidth loading={loading} loadingText={ticket || enroll ? "Verifying…" : "Checking…"} disabled={(!!ticket || !!enroll) && code.length !== 6}>
+          {enroll ? "Confirm and enter console" : ticket ? "Verify and enter console" : "Continue"}
         </Button>
       </form>
     </Shell>

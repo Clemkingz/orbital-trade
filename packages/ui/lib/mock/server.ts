@@ -295,14 +295,36 @@ on("POST", "/admin/auth/sign-up/confirm", async ({ s, body: b }) => {
 });
 
 on("POST", "/admin/auth/sign-in", async ({ s, body: b }) => {
-  const user = s.users.find((u) => u.email === String(b.email).toLowerCase() && isAdmin(u));
+  if (!s.users.some((u) => isAdmin(u)))
+    fail(401, "No admin account exists in this browser yet. Demo data is stored per browser, so create one with “Request console access” below.");
+  const user = s.users.find((u) => u.email === String(b.email).trim().toLowerCase() && isAdmin(u));
   if (!user || !(await checkPassword(String(b.password), user.salt, user.passwordHash))) fail(401, "Email or password is incorrect.");
-  if (!user!.totpEnabled) fail(403, "Finish setting up your authenticator app first. Sign up again to restart setup.");
   if (user!.status === "PENDING_APPROVAL") fail(403, "Your admin account is waiting for a super admin to approve it.");
   if (user!.status !== "ACTIVE") fail(403, "This admin account is not active.");
+  if (!user!.totpEnabled) {
+    // First sign-in without 2FA (e.g. the seeded dev admin): set up the authenticator now.
+    user!.totpSecret ??= generateTotpSecret();
+    const ticket = randomId("tk");
+    tickets.set(ticket, { userId: user!.id, purpose: "setup", expires: Date.now() + 15 * 60_000 });
+    return { enroll: { ticket, otpauthUrl: otpauthUrl(user!.totpSecret!, user!.email, `${BRAND.name} Admin`), secret: user!.totpSecret } };
+  }
   const ticket = randomId("tk");
   tickets.set(ticket, { userId: user!.id, purpose: "signin", expires: Date.now() + 10 * 60_000 });
   return { ticket };
+});
+
+/** Confirms the authenticator during first sign-in and opens the session. */
+on("POST", "/admin/auth/enroll", async ({ s, body: b }) => {
+  const t = tickets.get(String(b.ticket));
+  if (!t || t.purpose !== "setup" || t.expires < Date.now()) fail(401, "This setup expired. Sign in again.");
+  const user = s.users.find((u) => u.id === t!.userId)!;
+  if (!(await verifyTotp(user.totpSecret!, String(b.code)))) fail(400, "That code doesn't match. Check the time on your phone and try again.");
+  tickets.delete(String(b.ticket));
+  user.totpEnabled = true;
+  s.sessions.admin = user.id;
+  audit(s, user, "admin.2fa_enrolled", user.email);
+  audit(s, user, "admin.sign_in", user.email);
+  return { user: publicUser(user) };
 });
 
 on("POST", "/admin/auth/verify", async ({ s, body: b }) => {
@@ -780,6 +802,31 @@ on("POST", "/admin/admins/:id/role", ({ s, body: b, params: [id] }) => {
   return { ok: true };
 });
 
+/* ── Dev-only seeded admin ─────────────────────────────────────── */
+/**
+ * NEXT_PUBLIC_DEV_ADMIN_EMAIL / NEXT_PUBLIC_DEV_ADMIN_PASSWORD create a super admin in every
+ * browser automatically, so a known account exists without signing up. It skips the 10-character
+ * password rule on purpose. Development only: these values are visible in the browser bundle,
+ * and the account is never seeded in a production build.
+ */
+const DEV_ADMIN = {
+  email: (process.env.NEXT_PUBLIC_DEV_ADMIN_EMAIL ?? "").trim().toLowerCase(),
+  password: process.env.NEXT_PUBLIC_DEV_ADMIN_PASSWORD ?? "",
+};
+
+async function ensureDevAdmin(s: MState) {
+  if (process.env.NODE_ENV === "production" || !DEV_ADMIN.email || !DEV_ADMIN.password) return false;
+  if (s.users.some((u) => u.email === DEV_ADMIN.email)) return false;
+  const { salt, hash } = await hashPassword(DEV_ADMIN.password);
+  const local = DEV_ADMIN.email.split("@")[0];
+  s.users.push({
+    id: randomId("adm"), firstName: local.charAt(0).toUpperCase() + local.slice(1), lastName: "(dev admin)", email: DEV_ADMIN.email, phone: null, country: null, currency: "USD",
+    salt, passwordHash: hash, totpSecret: null, totpEnabled: false, role: "SUPER_ADMIN", status: "ACTIVE", kycStatus: "APPROVED", kycReason: null,
+    emailVerifiedAt: now(), lastBuyRedirectAt: null, createdAt: now(),
+  });
+  return true;
+}
+
 /* ── Dispatcher ───────────────────────────────────────────────── */
 export async function handle(method: string, fullPath: string, json: unknown, form: FormData | null) {
   const [path, qs] = fullPath.split("?");
@@ -788,6 +835,7 @@ export async function handle(method: string, fullPath: string, json: unknown, fo
     const match = path.match(re);
     if (!match) continue;
     const s = load();
+    if (await ensureDevAdmin(s)) save(s);
     const snapshot = JSON.stringify(s);
     try {
       const result = await h({ s, body: (json as Body) ?? {}, form, params: match.slice(1).map(decodeURIComponent), query: new URLSearchParams(qs) });

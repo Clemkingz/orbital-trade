@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImagePlus, ListPlus, Pencil, Plus } from "lucide-react";
 import { Button } from "@orbit/ui/components/ui/Button";
 import { Field, TextArea } from "@orbit/ui/components/ui/Field";
@@ -31,6 +31,39 @@ async function cropSquare(file: File): Promise<string> {
   return canvas.toDataURL("image/jpeg", 0.85);
 }
 
+/**
+ * Decimal input that keeps the text as typed ("0.", "0.0", "0.35") instead of re-formatting
+ * on every keystroke. Accepts digits and one ".", caps decimal places, reports the number.
+ */
+function DecimalField({ label, value, onValue, decimals, suffix, hint, error }: { label: string; value: number; onValue: (n: number) => void; decimals: number; suffix?: string; hint?: string; error?: string }) {
+  const [text, setText] = useState(() => (value ? String(value) : ""));
+  // Pick up a new value from outside (e.g. opening a different trader) without fighting the user's typing.
+  useEffect(() => {
+    if (Number(text) !== value) setText(value ? String(value) : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <Field
+      label={label}
+      inputMode="decimal"
+      placeholder={decimals >= 8 ? "0.00000000" : "0.00"}
+      value={text}
+      error={error}
+      hint={hint}
+      trailing={suffix ? <span className="pr-2 text-xs font-semibold text-text-muted">{suffix}</span> : undefined}
+      onChange={(e) => {
+        let v = e.target.value.replace(",", ".").replace(/[^\d.]/g, "");
+        const dot = v.indexOf(".");
+        if (dot !== -1) v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, "").slice(0, decimals);
+        if (v.startsWith(".")) v = "0" + v;
+        setText(v);
+        onValue(v === "" || v === "0." ? 0 : Number(v));
+      }}
+      onBlur={() => text.endsWith(".") && setText(text.slice(0, -1))}
+    />
+  );
+}
+
 export function TradersAdmin() {
   const { data: list, mutate } = useApi<Trader[]>("/admin/traders");
   const [edit, setEdit] = useState<Draft | null>(null);
@@ -50,6 +83,9 @@ export function TradersAdmin() {
   async function save() {
     if (!edit) return;
     if (!edit.name.trim() || !edit.bio.trim() || !edit.strategy.trim()) return toast.error("Name, bio and strategy are required");
+    if (!(edit.typicalTradeSizeBtc > 0)) return toast.error("Typical trade size must be more than 0 BTC", { description: "Use a decimal, e.g. 0.35" });
+    if (!(edit.minAllocation > 0)) return toast.error("Minimum allocation must be more than 0 BTC", { description: "Use a decimal, e.g. 0.005" });
+    if (edit.feePct < 0 || edit.feePct > 50) return toast.error("Fee must be between 0 and 50%");
     setSaving(true);
     try {
       const { id, ...body } = edit;
@@ -169,10 +205,10 @@ export function TradersAdmin() {
             </div>
             <Field label="Name" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
             <Field label="Years of experience" type="number" min={0} value={edit.yearsExperience} onChange={(e) => setEdit({ ...edit, yearsExperience: Number(e.target.value) })} />
-            <Field label="Typical trade size (BTC)" inputMode="decimal" value={edit.typicalTradeSizeBtc} onChange={(e) => setEdit({ ...edit, typicalTradeSizeBtc: Number(e.target.value) || 0 })} />
-            <Field label="Minimum allocation (BTC)" inputMode="decimal" value={edit.minAllocation} onChange={(e) => setEdit({ ...edit, minAllocation: Number(e.target.value) || 0 })} />
+            <DecimalField key={`size-${edit.id ?? "new"}`} label="Typical trade size (BTC)" decimals={8} suffix="BTC" value={edit.typicalTradeSizeBtc} onValue={(n) => setEdit((d) => d && { ...d, typicalTradeSizeBtc: n })} hint="e.g. 0.35" />
+            <DecimalField key={`min-${edit.id ?? "new"}`} label="Minimum allocation (BTC)" decimals={8} suffix="BTC" value={edit.minAllocation} onValue={(n) => setEdit((d) => d && { ...d, minAllocation: n })} hint="e.g. 0.005" />
             <SelectField label="Risk level" value={String(edit.riskLevel)} onChange={(e) => setEdit({ ...edit, riskLevel: Number(e.target.value) })} options={[1, 2, 3, 4, 5].map((n) => ({ value: String(n), label: `${n} – ${["Very low", "Low", "Medium", "High", "Very high"][n - 1]}` }))} />
-            <Field label="Fee (% of profits)" inputMode="decimal" value={edit.feePct} onChange={(e) => setEdit({ ...edit, feePct: Number(e.target.value) || 0 })} />
+            <DecimalField key={`fee-${edit.id ?? "new"}`} label="Fee (% of profits)" decimals={2} suffix="%" value={edit.feePct} onValue={(n) => setEdit((d) => d && { ...d, feePct: n })} hint="e.g. 12.5" />
             <TextArea className="sm:col-span-2" label="Strategy" value={edit.strategy} onChange={(e) => setEdit({ ...edit, strategy: e.target.value })} />
             <TextArea className="sm:col-span-2" label="Bio" value={edit.bio} onChange={(e) => setEdit({ ...edit, bio: e.target.value })} />
           </div>
@@ -188,7 +224,7 @@ export function TradersAdmin() {
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <SelectField label="Side" value={trade.side} onChange={(e) => setTrade({ ...trade, side: e.target.value })} options={[{ value: "BUY", label: "Buy (long)" }, { value: "SELL", label: "Sell (short)" }]} />
-          <Field label="Size (BTC)" inputMode="decimal" value={trade.size} onChange={(e) => setTrade({ ...trade, size: e.target.value })} hint={logFor ? `Typical: ${fmtBtc(logFor.typicalTradeSizeBtc, 2)}` : undefined} />
+          <Field label="Size (BTC)" inputMode="decimal" value={trade.size} onChange={(e) => setTrade({ ...trade, size: e.target.value.replace(",", ".").replace(/[^\d.]/g, "") })} hint={logFor ? `Typical: ${fmtBtc(logFor.typicalTradeSizeBtc, 2)}` : undefined} />
           <Field label="Entry price (USD)" inputMode="decimal" placeholder="96000" value={trade.entry} onChange={(e) => setTrade({ ...trade, entry: e.target.value })} />
           <Field label="Exit price (USD)" inputMode="decimal" placeholder="97200" value={trade.exit} onChange={(e) => setTrade({ ...trade, exit: e.target.value })} hint={pct != null ? <span className={pct >= 0 ? "text-success" : "text-danger"}>{fmtPct(pct)} {pct >= 0 ? "win" : "loss"}</span> : undefined} />
           <Field label="Opened" type="datetime-local" step={1} value={trade.opened} onChange={(e) => setTrade({ ...trade, opened: e.target.value })} />
