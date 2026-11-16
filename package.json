@@ -1,0 +1,20 @@
+{
+  "name": "orbit-trade",
+  "private": true,
+  "packageManager": "pnpm@10.14.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @orbit/web --filter @orbit/admin dev",
+    "dev:web": "pnpm --filter @orbit/web dev",
+    "dev:admin": "pnpm --filter @orbit/admin dev",
+    "dev:api": "pnpm --filter @orbit/api dev",
+    "dev:all": "pnpm -r --parallel --filter \"./apps/*\" dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @orbit/db generate",
+    "db:migrate": "pnpm --filter @orbit/db migrate",
+    "db:studio": "pnpm --filter @orbit/db studio"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

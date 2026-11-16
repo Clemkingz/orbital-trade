@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "../../../packages/ui/styles/theme.css";
+
+/* Scan the shared package for class names. */
+@source "../../../packages/ui";

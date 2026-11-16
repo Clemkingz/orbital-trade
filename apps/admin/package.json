@@ -1,0 +1,36 @@
+{
+  "name": "@orbit/admin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Operations console. Deployed on its own subdomain (e.g. admin.example.com) behind an IP allow-list.",
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@next/env": "15.5.4",
+    "@orbit/shared": "workspace:*",
+    "@orbit/ui": "workspace:*",
+    "d3-geo": "^3.1.2",
+    "lucide-react": "^1.72.0",
+    "next": "15.5.4",
+    "qrcode.react": "^4.2.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.13",
+    "@types/d3-geo": "^3.1.1",
+    "@types/node": "^22.18.0",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@types/topojson-client": "^3.1.5",
+    "@types/topojson-specification": "^1.0.5",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.9.2"
+  }
+}
