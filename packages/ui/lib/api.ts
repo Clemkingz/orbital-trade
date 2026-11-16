@@ -4,7 +4,12 @@ import useSWR, { mutate as globalMutate, type SWRConfiguration } from "swr";
 import { onExternalChange } from "./mock/db";
 import { handle, MockHttpError } from "./mock/server";
 
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000") + "/v1";
+/**
+ * Base URL for "live" mode. Defaults to the same origin (`/api/v1`), which is where the API would be
+ * mounted on Vercel. Set NEXT_PUBLIC_API_URL only to point at a separately running API in local dev.
+ * The API is called from the browser, so it must be public (bindings only work server-side).
+ */
+export const API_URL = `${(process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")}/api/v1`;
 
 /**
  * "mock" (default): requests are answered in the browser by lib/mock/server.ts, using localStorage.

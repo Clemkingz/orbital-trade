@@ -8,8 +8,12 @@ loadEnvConfig(path.resolve(__dirname, "../.."), process.env.NODE_ENV !== "produc
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@orbit/shared", "@orbit/ui"],
-  /** The admin console (apps/admin, basePath /admin) is reached through this origin in development. */
+  /**
+   * Local development only: forward /admin to the admin dev server so both apps share one origin.
+   * On Vercel, the top-level rewrites in vercel.json route /admin to the `admin` service instead.
+   */
   async rewrites() {
+    if (process.env.NODE_ENV !== "development") return [];
     const admin = process.env.ADMIN_DEV_URL ?? "http://localhost:3001";
     return [
       { source: "/admin", destination: `${admin}/admin` },

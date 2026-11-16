@@ -7,7 +7,9 @@ export const BRAND = {
   tagline: "Trade Bitcoin with traders you can verify.",
   description:
     "Buy Bitcoin on trusted platforms, verify your ID, and copy vetted traders whose every win and loss comes from recorded trades.",
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  url:
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000"),
   supportEmail: "support@example.com",
   registration: "Registration details pending SEC Nigeria approval.",
 } as const;
