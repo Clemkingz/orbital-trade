@@ -57,6 +57,8 @@ export function HowItWorks() {
 export function FeaturedTraders() {
   const { data } = useApi<Trader[]>("/traders");
   const list = useMemo(() => (data ?? []).slice(0, 3), [data]);
+  // Hide the section entirely until an admin has added at least one trader.
+  if (data && list.length === 0) return null;
   return (
     <section id="traders" className="bg-surface py-20 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

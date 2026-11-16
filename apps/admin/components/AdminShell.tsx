@@ -11,6 +11,7 @@ import { Badge } from "@orbit/ui/components/ui/misc";
 import { api } from "@orbit/ui/lib/api";
 import { cn } from "@orbit/ui/lib/cn";
 import { useAdminMe, useOverview, type Overview } from "@/lib/data";
+import { VisitorAlerts } from "./VisitorAlerts";
 
 type CountKey = keyof Pick<Overview, "kyc" | "claims" | "adjustments" | "withdrawals" | "pendingAdmins">;
 
@@ -111,6 +112,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           </button>
           <Badge tone="primary" className="hidden sm:inline-flex">Operations console</Badge>
           <div className="ml-auto flex items-center gap-3">
+            <VisitorAlerts />
             <div className="hidden text-right leading-tight sm:block">
               <p className="text-sm font-semibold">{me.firstName} {me.lastName}</p>
               <p className="text-xs text-text-muted">{me.role === "SUPER_ADMIN" ? "Super admin" : "Admin"}</p>

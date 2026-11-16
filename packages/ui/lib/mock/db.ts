@@ -5,7 +5,6 @@
  */
 import type { AdjustmentReason, DepositClaimStatus, IdType, KycStatus, LedgerEntryType } from "@orbit/shared";
 import type { Announcement, BuyPlatform, Side, TileConfig } from "../types";
-import { prng } from "./seed";
 
 export interface MUser {
   id: string;
@@ -114,33 +113,13 @@ export interface MState {
 
 const KEY = "orbit-mock-db-v2";
 const DAY = 86_400_000;
-const HOUR = 3_600_000;
 
 function seed(): MState {
   const now = Date.now();
   const iso = (t: number) => new Date(t).toISOString();
-  const traders: MTrader[] = [
-    { id: "t-amaka", name: "Amaka Eze", hue: 262, yearsExperience: 7, typicalTradeSizeBtc: 0.35, riskLevel: 2, minAllocation: 0.005, feePct: 15, bio: "Former FX desk analyst in Lagos. Trades BTC swing structure on the 4-hour chart and keeps risk per trade under 1%.", strategy: "Swing trading on 4H market structure with tight invalidation." },
-    { id: "t-david", name: "David Mensah", hue: 190, yearsExperience: 5, typicalTradeSizeBtc: 0.6, riskLevel: 4, minAllocation: 0.01, feePct: 20, bio: "Momentum trader focused on high-volume sessions around US market open. Cuts losers fast and lets runners trail.", strategy: "Momentum breakouts during the New York session." },
-    { id: "t-sofia", name: "Sofia Lindqvist", hue: 320, yearsExperience: 9, typicalTradeSizeBtc: 0.2, riskLevel: 3, minAllocation: 0.003, feePct: 12, bio: "Quant background. Mean-reversion on funding-rate extremes with small, frequent positions.", strategy: "Mean reversion around funding and basis extremes." },
-  ].map((t) => ({ ...t, photoUrl: null, active: true, demo: true, createdAt: iso(now - 120 * DAY) }));
-
+  // No seeded traders: traders are created by admins in the console (Traders → New trader).
+  const traders: MTrader[] = [];
   const trades: MTrade[] = [];
-  traders.forEach((tr, ti) => {
-    const r = prng(100 + ti);
-    const edge = [0.62, 0.55, 0.58][ti];
-    let price = 96_420 * 0.86;
-    for (let i = 0; i < 48; i++) {
-      const side: Side = r() > 0.4 ? "BUY" : "SELL";
-      const entry = Math.round(price * (1 + (r() - 0.5) * 0.01));
-      const pct = (r() < edge ? 0.004 + r() * 0.025 : -(0.003 + r() * 0.018)) * (side === "BUY" ? 1 : -1);
-      const opened = now - ((110 - i * 2.2) * DAY + r() * DAY);
-      const closed = opened + (2 + r() * 30) * HOUR;
-      // Historic trades are marked mirrored so they never credit later copiers.
-      trades.push({ id: `${tr.id}-${i}`, traderId: tr.id, side, entry, exit: Math.round(entry * (1 + pct)), size: +(tr.typicalTradeSizeBtc * (0.6 + r() * 0.8)).toFixed(3), openedAt: iso(opened), closedAt: iso(closed), mirroredAt: iso(closed) });
-      price *= 1 + (r() - 0.46) * 0.012;
-    }
-  });
 
   const platforms = (
     [
@@ -201,12 +180,30 @@ export function load(): MState {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as MState;
-      if (parsed.version === 2) return (cache = parsed);
+      if (parsed.version === 2) {
+        cache = parsed;
+        if (removeDemoTraders(parsed)) save(parsed);
+        return cache;
+      }
     }
   } catch {
     /* storage unavailable or corrupt: start fresh */
   }
   return (cache = seed());
+}
+
+/**
+ * Removes the old seeded demo traders (Amaka Eze, David Mensah, Sofia Lindqvist) from browsers
+ * that already have them. Traders created by admins are kept. Copies of a removed trader are
+ * stopped so the allocation returns to the user's available balance; ledger history is kept.
+ */
+function removeDemoTraders(s: MState) {
+  const demoIds = new Set(s.traders.filter((t) => t.demo).map((t) => t.id));
+  if (!demoIds.size) return false;
+  s.traders = s.traders.filter((t) => !demoIds.has(t.id));
+  s.trades = s.trades.filter((t) => !demoIds.has(t.traderId));
+  for (const c of s.copies) if (demoIds.has(c.traderId)) c.status = "STOPPED";
+  return true;
 }
 
 export function save(state: MState) {
