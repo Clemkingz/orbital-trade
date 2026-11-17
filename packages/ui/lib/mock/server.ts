@@ -12,6 +12,7 @@ import type { AdjustmentReason } from "@orbit/shared";
 import { BRAND } from "../config";
 import type { MLedger, MState, MTrade, MUser } from "./db";
 import { load, save } from "./db";
+import { getBtcUsd, startLiveFeed } from "../live-btc";
 import { checkPassword, generateTotpSecret, hashPassword, imageToDataUrl, otpauthUrl, randomId, sixDigitCode, verifyTotp } from "./crypto";
 
 export class MockHttpError extends Error {
@@ -29,10 +30,12 @@ const fail = (status: number, message: string): never => {
 /* ── Money ────────────────────────────────────────────────────── */
 const COUNTRY_CURRENCY: Record<string, string> = { NG: "NGN", GH: "GHS", KE: "KES", ZA: "ZAR", GB: "GBP", US: "USD", CA: "CAD", AE: "AED" };
 const FX: Record<string, number> = { USD: 1, NGN: 1560, GHS: 15.4, KES: 129.5, ZAR: 18.2, GBP: 0.79, CAD: 1.38, AED: 3.6725 };
-const BTC_USD = Number(process.env.NEXT_PUBLIC_BTC_USD_PRICE) || 96_420;
+/** Live Coinbase BTC price when available; NEXT_PUBLIC_BTC_USD_PRICE until the first quote arrives. */
+const FALLBACK_BTC_USD = Number(process.env.NEXT_PUBLIC_BTC_USD_PRICE) || 96_420;
+const btcUsdNow = () => getBtcUsd() ?? FALLBACK_BTC_USD;
 const r8 = (n: number) => Math.round(n * 1e8) / 1e8;
 const r2 = (n: number) => Math.round(n * 100) / 100;
-const btcPriceIn = (cur: string) => BTC_USD * (FX[cur] ?? 1);
+const btcPriceIn = (cur: string) => btcUsdNow() * (FX[cur] ?? 1);
 
 export const LIMITS = { adjustmentSecondApprovalBtc: 0.05, withdrawalAdminApprovalBtc: 0.1, withdrawalFeeBtc: 0.0001, positionFraction: 0.25 };
 
@@ -72,7 +75,7 @@ function summary(s: MState, user: MUser) {
   const allocated = r8(s.copies.filter((c) => c.userId === user.id && c.status !== "STOPPED").reduce((t, c) => t + c.allocationBtc, 0));
   const price = btcPriceIn(user.currency);
   const both = (btc: number) => ({ btc, fiat: r2(btc * price) });
-  return { currency: user.currency, btcPrice: r2(price), btcUsd: BTC_USD, balance: both(total), deposited: both(deposited), profit: both(profit), allocated: both(allocated), available: both(Math.max(0, r8(total - allocated))), entries };
+  return { currency: user.currency, btcPrice: r2(price), btcUsd: btcUsdNow(), balance: both(total), deposited: both(deposited), profit: both(profit), allocated: both(allocated), available: both(Math.max(0, r8(total - allocated))), entries };
 }
 
 function dashboardFor(s: MState, user: MUser) {
@@ -829,6 +832,7 @@ async function ensureDevAdmin(s: MState) {
 
 /* ── Dispatcher ───────────────────────────────────────────────── */
 export async function handle(method: string, fullPath: string, json: unknown, form: FormData | null) {
+  startLiveFeed(); // live BTC price for conversions (browser only)
   const [path, qs] = fullPath.split("?");
   for (const [m, re, h] of routes) {
     if (m !== method) continue;

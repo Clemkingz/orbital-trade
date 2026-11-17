@@ -1,40 +1,39 @@
 "use client";
 
 /**
- * News adapter (FR-1.5, FR-1.7). In production this hits a server route that caches the
- * licensed news API for 60 s; the client never sees the API key.
+ * News adapter (FR-1.5, FR-1.7). Real headlines from public publisher feeds, served by the
+ * web app's own route (app/feeds/news/route.ts) and refreshed every 60 s. One shared request
+ * feeds both the headline ticker and the Market news section.
  */
-import { useCallback, useEffect, useState } from "react";
-import { NEWS } from "@orbit/ui/lib/mock/seed";
+import useSWR from "swr";
 import type { NewsItem } from "@orbit/ui/lib/types";
 
 export type NewsFilter = "All" | NewsItem["category"];
 
-async function fetchNews(): Promise<NewsItem[]> {
-  await new Promise((r) => setTimeout(r, 450)); // simulate network
-  return NEWS;
+interface NewsResponse {
+  items: NewsItem[];
+  updatedAt: string;
+  error?: string;
+}
+
+async function fetchNews(url: string): Promise<NewsResponse> {
+  const res = await fetch(url);
+  const body = (await res.json().catch(() => null)) as NewsResponse | null;
+  if (!res.ok || !body) throw new Error(body?.error ?? "Couldn't load headlines.");
+  return body;
 }
 
 export function useNews(refreshMs = 60_000) {
-  const [items, setItems] = useState<NewsItem[] | null>(null);
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      setItems(await fetchNews());
-      setUpdatedAt(new Date());
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const id = setInterval(load, refreshMs);
-    return () => clearInterval(id);
-  }, [load, refreshMs]);
-
-  return { items, updatedAt, refreshing, reload: load };
+  const { data, error, isValidating, mutate } = useSWR<NewsResponse, Error>("/feeds/news", fetchNews, {
+    refreshInterval: refreshMs,
+    revalidateOnFocus: false,
+    keepPreviousData: true,
+  });
+  return {
+    items: data?.items ?? (error ? [] : null),
+    updatedAt: data ? new Date(data.updatedAt) : null,
+    refreshing: isValidating,
+    error: error?.message ?? null,
+    reload: () => mutate(),
+  };
 }

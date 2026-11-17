@@ -12,7 +12,7 @@ const TONE = { Stocks: "primary", Crypto: "success", Macro: "warning" } as const
 
 /** FR-1.5 — 10 latest headlines, filterable, refreshed every 60 s. */
 export function MarketNews() {
-  const { items, updatedAt, refreshing, reload } = useNews(60_000);
+  const { items, updatedAt, refreshing, reload, error } = useNews(60_000);
   const [filter, setFilter] = useState<NewsFilter>("All");
   const shown = useMemo(() => (items ?? []).filter((n) => filter === "All" || n.category === filter).slice(0, 10), [items, filter]);
 
@@ -24,7 +24,7 @@ export function MarketNews() {
             <p className="text-sm font-semibold uppercase tracking-wider text-primary">Market news</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">What Wall Street is watching</h2>
             <p className="mt-2 text-text-muted" suppressHydrationWarning>
-              Headlines from licensed sources. {updatedAt ? `Updated ${timeAgo(updatedAt)}.` : "Loading…"}
+              Live headlines from CNBC, MarketWatch, CoinDesk, Cointelegraph and the Federal Reserve. {updatedAt ? `Updated ${timeAgo(updatedAt)}.` : "Loading…"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -48,7 +48,7 @@ export function MarketNews() {
             : shown.length === 0
               ? (
                 <div className="md:col-span-2">
-                  <EmptyState icon={<Newspaper className="size-5" />} title="No headlines right now" body="Check back in a minute; the feed refreshes automatically." />
+                  <EmptyState icon={<Newspaper className="size-5" />} title={error ? "Couldn't load headlines" : "No headlines in this category right now"} body={error ? "The news feeds didn't respond. We'll try again in a minute." : "Check back soon. The feed refreshes every minute."} />
                 </div>
               )
               : shown.map((n, i) => (

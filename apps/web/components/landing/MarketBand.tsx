@@ -5,13 +5,15 @@ import { FlashNumber } from "@orbit/ui/components/ui/misc";
 import { useMarketStrip } from "@/lib/adapters/market";
 import { cn } from "@orbit/ui/lib/cn";
 import { fmtPct } from "@orbit/ui/lib/format";
-import { NEWS } from "@orbit/ui/lib/mock/seed";
+import { useNews } from "@/lib/adapters/news";
 
 /** FR-1.5 scrolling headline ticker + FR-1.6 market strip, directly under the hero. */
 export function MarketBand() {
   const quotes = useMarketStrip();
   const anyDelayed = quotes.some((q) => q.delayed);
-  const headlines = [...NEWS, ...NEWS];
+  const { items } = useNews();
+  const latest = (items ?? []).slice(0, 15);
+  const headlines = [...latest, ...latest];
 
   return (
     <div className="border-y border-white/10 bg-[#120430] text-white">
@@ -20,7 +22,7 @@ export function MarketBand() {
         <span className="absolute inset-y-0 left-0 z-10 flex items-center bg-gradient-to-r from-[#120430] via-[#120430] to-transparent pl-4 pr-8 text-[11px] font-bold uppercase tracking-wider text-cyan">Live news</span>
         <div className="flex shrink-0 animate-marquee gap-10 whitespace-nowrap pl-36 group-hover:[animation-play-state:paused]">
           {headlines.map((n, i) => (
-            <a key={`${n.id}-${i}`} href={n.url} target="_blank" rel="noopener noreferrer" className="text-[13px] text-white/70 transition hover:text-white" tabIndex={i >= NEWS.length ? -1 : 0}>
+            <a key={`${n.id}-${i}`} href={n.url} target="_blank" rel="noopener noreferrer" className="text-[13px] text-white/70 transition hover:text-white" tabIndex={i >= latest.length ? -1 : 0}>
               <span className="mr-2 text-white/35">{n.source}</span>
               {n.headline}
             </a>

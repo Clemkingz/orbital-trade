@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Logo } from "@orbit/ui/components/brand/Logo";
 import { ButtonLink } from "@orbit/ui/components/ui/Button";
+import { ThemeToggle } from "@orbit/ui/components/ui/ThemeToggle";
 import { cn } from "@orbit/ui/lib/cn";
 
 const LINKS = [
@@ -45,6 +46,7 @@ export function SiteNav() {
           ))}
         </ul>
         <div className="hidden items-center gap-2 md:flex">
+          <ThemeToggle onDark />
           <Link href="/sign-in" className="rounded-lg px-3 py-2 text-sm font-semibold text-white/85 transition hover:text-white">
             Sign in
           </Link>
@@ -52,9 +54,12 @@ export function SiteNav() {
             Get started
           </ButtonLink>
         </div>
+        <div className="flex items-center gap-1 md:hidden">
+          <ThemeToggle onDark />
         <button onClick={() => setOpen((o) => !o)} className="rounded-lg p-2 text-white md:hidden" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open}>
           {open ? <X className="size-6" /> : <Menu className="size-6" />}
         </button>
+        </div>
       </nav>
 
       {open && (

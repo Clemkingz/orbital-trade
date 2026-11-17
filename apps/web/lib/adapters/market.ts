@@ -1,110 +1,86 @@
 "use client";
 
 /**
- * Market data adapter (FR-1.3). The mock emits a tick every second, like a WebSocket feed.
- * Swap `createMockFeed` for a real WebSocket client with the same `subscribe` contract.
+ * Market data adapter (FR-1.3). BTC and ETH come from Coinbase's live public feed
+ * (packages/ui/lib/live-btc.ts). Stock indices are still sample values until an
+ * index-data licence is in place.
  */
 import { useEffect, useRef, useState } from "react";
 import { INDEX_DATA_DELAYED } from "@orbit/ui/lib/config";
-import { BASE_BTC_PRICE, prng } from "@orbit/ui/lib/mock/seed";
+import { fetchCandles, getQuote, getStatus, subscribeLive, type FeedStatus, type Product } from "@orbit/ui/lib/live-btc";
 import type { Candle, MarketQuote } from "@orbit/ui/lib/types";
-
-type Tick = { price: number; t: number };
-type Listener = (tick: Tick) => void;
 
 const MINUTE = 60_000;
 
-function seedCandles(count: number, endPrice: number): Candle[] {
-  const r = prng(42);
-  const now = Math.floor(Date.now() / MINUTE) * MINUTE;
-  const out: Candle[] = [];
-  let c = endPrice;
-  for (let i = 0; i < count; i++) {
-    const o = c - (r() - 0.5) * 70;
-    const h = Math.max(o, c) + r() * 35;
-    const l = Math.min(o, c) - r() * 35;
-    out.unshift({ t: now - (i + 1) * MINUTE, o, h, l, c });
-    c = o;
-  }
-  return out;
-}
-
-function createMockFeed() {
-  const listeners = new Set<Listener>();
-  let price = BASE_BTC_PRICE;
-  let timer: ReturnType<typeof setInterval> | null = null;
-  const r = prng(Date.now() % 100000);
-  return {
-    subscribe(fn: Listener) {
-      listeners.add(fn);
-      if (!timer) {
-        timer = setInterval(() => {
-          price = Math.max(1000, price + (r() - 0.5) * 38);
-          const tick = { price, t: Date.now() };
-          listeners.forEach((l) => l(tick));
-        }, 1000);
-      }
-      return () => {
-        listeners.delete(fn);
-        if (!listeners.size && timer) {
-          clearInterval(timer);
-          timer = null;
-        }
-      };
-    },
-    last: () => price,
-  };
-}
-
-const feed = createMockFeed();
-
-/** Live BTC/USD price + rolling 1-minute candles. */
-export function useLiveBtc(candleCount = 40) {
-  const [candles, setCandles] = useState<Candle[]>(() => seedCandles(candleCount, BASE_BTC_PRICE));
-  const [price, setPrice] = useState(BASE_BTC_PRICE);
+/** Live BTC/USD price + rolling 1-minute candles. `price` is null until the first real quote. */
+export function useLiveBtc(candleCount = 36) {
+  const [candles, setCandles] = useState<Candle[]>([]);
+  const [price, setPrice] = useState<number | null>(null);
+  const [open24h, setOpen24h] = useState<number | null>(null);
   const [direction, setDirection] = useState<"up" | "down" | null>(null);
-  const prev = useRef(BASE_BTC_PRICE);
+  const [status, setStatus] = useState<FeedStatus>("connecting");
+  const prev = useRef<number | null>(null);
 
+  // Real 1-minute history to start the chart.
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      fetchCandles(candleCount)
+        .then((c) => !cancelled && setCandles(c))
+        .catch(() => !cancelled && setTimeout(load, 5000));
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [candleCount]);
+
+  // Live ticks: update the price and the current minute's candle.
   useEffect(
     () =>
-      feed.subscribe(({ price: p, t }) => {
-        setDirection(p >= prev.current ? "up" : "down");
-        prev.current = p;
-        setPrice(p);
+      subscribeLive(() => {
+        setStatus(getStatus());
+        const q = getQuote("BTC-USD");
+        if (!q) return;
+        if (prev.current != null && q.price !== prev.current) setDirection(q.price > prev.current ? "up" : "down");
+        prev.current = q.price;
+        setPrice(q.price);
+        setOpen24h(q.open24h);
         setCandles((cs) => {
-          const bucket = Math.floor(t / MINUTE) * MINUTE;
+          if (!cs.length) return cs;
+          const bucket = Math.floor(q.t / MINUTE) * MINUTE;
           const last = cs[cs.length - 1];
-          if (last && last.t === bucket) {
-            return [...cs.slice(0, -1), { ...last, c: p, h: Math.max(last.h, p), l: Math.min(last.l, p) }];
-          }
-          return [...cs.slice(1), { t: bucket, o: last?.c ?? p, h: p, l: p, c: p }];
+          if (last.t === bucket) return [...cs.slice(0, -1), { ...last, c: q.price, h: Math.max(last.h, q.price), l: Math.min(last.l, q.price) }];
+          if (bucket > last.t) return [...cs.slice(-(candleCount - 1)), { t: bucket, o: last.c, h: Math.max(last.c, q.price), l: Math.min(last.c, q.price), c: q.price }];
+          return cs;
         });
       }),
-    [],
+    [candleCount],
   );
 
-  const open24 = candles[0]?.o ?? price;
-  return { price, candles, direction, changePct: ((price - open24) / open24) * 100 };
+  return { price, candles, direction, status, changePct: price != null && open24h ? ((price - open24h) / open24h) * 100 : null };
 }
 
-const STRIP_BASE: Omit<MarketQuote, "delayed">[] = [
+const INDICES: Omit<MarketQuote, "delayed">[] = [
   { symbol: "SPX", name: "S&P 500", price: 5_982.4, changePct: 0.42 },
   { symbol: "IXIC", name: "Nasdaq", price: 19_214.7, changePct: 0.71 },
   { symbol: "DJI", name: "Dow Jones", price: 43_870.1, changePct: -0.12 },
-  { symbol: "BTC", name: "Bitcoin", price: BASE_BTC_PRICE, changePct: 1.84 },
-  { symbol: "ETH", name: "Ethereum", price: 3_412.6, changePct: -0.63 },
 ];
 
-/** FR-1.6 market strip. Index quotes are flagged as delayed when the licence requires it. */
-export function useMarketStrip(btcPrice?: number) {
-  const [quotes, setQuotes] = useState<MarketQuote[]>(() =>
-    STRIP_BASE.map((q) => ({ ...q, delayed: INDEX_DATA_DELAYED && !["BTC", "ETH"].includes(q.symbol) })),
-  );
+const live = (p: Product, symbol: string, name: string): MarketQuote | null => {
+  const q = getQuote(p);
+  return q ? { symbol, name, price: q.price, changePct: q.open24h ? ((q.price - q.open24h) / q.open24h) * 100 : 0, delayed: false } : null;
+};
+
+/** FR-1.6 market strip: live BTC/ETH (24h change), indices flagged as delayed. */
+export function useMarketStrip() {
+  const [indices, setIndices] = useState<MarketQuote[]>(() => INDICES.map((q) => ({ ...q, delayed: INDEX_DATA_DELAYED })));
+  const [, force] = useState(0);
+
+  useEffect(() => subscribeLive(() => force((n) => n + 1)), []);
   useEffect(() => {
     const id = setInterval(() => {
-      setQuotes((qs) =>
+      setIndices((qs) =>
         qs.map((q) => {
-          if (q.symbol === "BTC") return q;
           const drift = (Math.random() - 0.5) * 0.04;
           return { ...q, price: q.price * (1 + drift / 100), changePct: +(q.changePct + drift).toFixed(2) };
         }),
@@ -112,8 +88,6 @@ export function useMarketStrip(btcPrice?: number) {
     }, 5000);
     return () => clearInterval(id);
   }, []);
-  if (btcPrice) {
-    return quotes.map((q) => (q.symbol === "BTC" ? { ...q, price: btcPrice, changePct: q.changePct + ((btcPrice - BASE_BTC_PRICE) / BASE_BTC_PRICE) * 100 } : q));
-  }
-  return quotes;
+
+  return [...indices, live("BTC-USD", "BTC", "Bitcoin"), live("ETH-USD", "ETH", "Ethereum")].filter(Boolean) as MarketQuote[];
 }

@@ -39,14 +39,17 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 rounded-2xl border border-warning/25 bg-warning/[0.06] p-5">
-          <p className="flex items-center gap-2 text-sm font-semibold text-warning">
-            <AlertTriangle className="size-4" /> Risk warning
-          </p>
-          <p className="mt-2 text-[13px] leading-relaxed text-white/60">{RISK_WARNING} Purchases on third-party platforms happen under their own terms and their own identity checks.</p>
-        </div>
+        <p className="mt-12 flex items-start gap-1.5 text-[11px] leading-relaxed text-white/40">
+          <AlertTriangle className="mt-px size-3 shrink-0 text-warning/70" aria-hidden="true" />
+          <span>
+            <span className="font-medium text-white/55">Risk warning:</span> {RISK_WARNING}{" "}
+            <Link href="/legal/risk-disclosure" className="underline underline-offset-2 hover:text-white/70">
+              Read more
+            </Link>
+          </span>
+        </p>
 
-        <div className="mt-8 flex flex-col gap-3 border-t border-white/10 pt-6 text-xs text-white/40 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-6 flex flex-col gap-3 border-t border-white/10 pt-6 text-xs text-white/40 sm:flex-row sm:items-center sm:justify-between">
           <p>
             © {new Date().getFullYear()} {BRAND.name}. {BRAND.registration}
           </p>

@@ -127,7 +127,6 @@ export function Security() {
 const FAQS = [
   { q: "Why do I need to verify my ID?", a: "We're required to know who our customers are. Verification also stops anyone else from depositing to or withdrawing from your account. Until it's approved, you can log in and read announcements, but money features stay locked." },
   { q: "How do I fund my account?", a: "Buy BTC on one of the listed platforms, such as MoonPay, Coinmama or Quidax. Send it to the deposit address on your dashboard, then submit a deposit claim with the transaction hash. We credit it after 2 network confirmations." },
-  { q: "Why do I have to submit a deposit claim?", a: "Everyone deposits to the same address, and Bitcoin transfers carry no memo. Your claim tells us the transaction is yours, so we can match it by hash and amount. Each hash can only be credited once." },
   { q: "How are trader statistics calculated?", a: "From the trader's recorded trades. A closed trade with a profit counts as a win, and one with a loss counts as a loss. Returns and drawdown come from the same records. Nobody types these numbers in." },
   { q: "Can I copy more than one trader?", a: "Yes. Each copy has its own allocation and optional stop-loss. Your total allocation can't exceed your available balance, and you can pause or stop any copy at any time." },
   { q: "Can I withdraw at any time?", a: "Yes. Verified users can withdraw their available balance at any time, subject only to the published network fee. Large withdrawals get an extra admin check. We never charge a fee to unlock a withdrawal." },

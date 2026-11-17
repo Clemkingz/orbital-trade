@@ -8,6 +8,7 @@ import { Logo } from "@orbit/ui/components/brand/Logo";
 import { OrbitLoader } from "@orbit/ui/components/brand/OrbitLoader";
 import { toast } from "@orbit/ui/components/ui/Toast";
 import { Badge } from "@orbit/ui/components/ui/misc";
+import { ThemeToggle } from "@orbit/ui/components/ui/ThemeToggle";
 import { api } from "@orbit/ui/lib/api";
 import { cn } from "@orbit/ui/lib/cn";
 import { useAdminMe, useOverview, type Overview } from "@/lib/data";
@@ -112,6 +113,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           </button>
           <Badge tone="primary" className="hidden sm:inline-flex">Operations console</Badge>
           <div className="ml-auto flex items-center gap-3">
+            <ThemeToggle />
             <VisitorAlerts />
             <div className="hidden text-right leading-tight sm:block">
               <p className="text-sm font-semibold">{me.firstName} {me.lastName}</p>

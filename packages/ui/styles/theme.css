@@ -22,6 +22,9 @@
   --color-muted: #f3f3f6;
   --color-border: #e7e7ef;
 
+  --color-skeleton-shine: #ebeaf2;
+  --color-scrollbar: #d6d3e3;
+
   /* Text */
   --color-text: #1f1f1f;
   --color-text-muted: #6b7280;
@@ -163,7 +166,7 @@ body {
 
 /* Skeleton shimmer */
 .skeleton {
-  background: linear-gradient(90deg, var(--color-muted) 25%, #ebeaf2 37%, var(--color-muted) 63%);
+  background: linear-gradient(90deg, var(--color-muted) 25%, var(--color-skeleton-shine) 37%, var(--color-muted) 63%);
   background-size: 400% 100%;
   animation: var(--animate-shimmer);
   border-radius: 8px;
@@ -190,7 +193,7 @@ body {
 /* Thin scrollbars inside panels */
 .scroll-thin {
   scrollbar-width: thin;
-  scrollbar-color: #d6d3e3 transparent;
+  scrollbar-color: var(--color-scrollbar) transparent;
 }
 
 /* Dot grid backdrop for dark sections */
@@ -210,4 +213,34 @@ body {
     opacity: 1;
     transform: none;
   }
+}
+
+/* ───────────────────────────────────────────────────────────────
+   Dark mode — toggled by the `dark` class on <html> (ThemeToggle).
+   Overrides the surface/text tokens; brand colours stay the same.
+   ─────────────────────────────────────────────────────────────── */
+:root.dark {
+  color-scheme: dark;
+  --color-surface: #140a2b;
+  --color-surface-alt: #0a0118;
+  --color-muted: #1d1238;
+  --color-border: #2b2050;
+  --color-primary-soft: #251660;
+  --color-text: #ece9f7;
+  --color-text-muted: #a49ec2;
+  --color-skeleton-shine: #2a1d4d;
+  --color-scrollbar: #3a2e63;
+}
+
+/* Text that sits on soft tints needs a lighter shade in dark mode. */
+:root.dark .text-primary-deep { color: #c9b8ff; }
+:root.dark .text-primary { color: #a98bff; }
+:root.dark .text-\[\#92400e\] { color: #fcd34d; }
+:root.dark .text-\[\#b45309\] { color: #fbbf24; }
+:root.dark ::selection { color: #fff; }
+
+/* Smooth colour change when switching themes (not on first paint). */
+:root.theme-transition,
+:root.theme-transition * {
+  transition: background-color 0.35s ease, border-color 0.35s ease, color 0.2s ease !important;
 }

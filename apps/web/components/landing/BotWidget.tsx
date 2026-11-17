@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { Bot, Info } from "lucide-react";
-import { FlashNumber, LiveDot, Segmented } from "@orbit/ui/components/ui/misc";
+import { FlashNumber, LiveDot, Segmented, Skeleton } from "@orbit/ui/components/ui/misc";
 import { useLiveBtc } from "@/lib/adapters/market";
 import { PROP_ACCOUNT_LABEL } from "@orbit/ui/lib/config";
 import { cn } from "@orbit/ui/lib/cn";
 import { fmtPct, fmtTime, fmtUsd } from "@orbit/ui/lib/format";
-import { BOT_TRADES, PROP_STARTING_EQUITY } from "@orbit/ui/lib/mock/seed";
+import { makeBotTrades, PROP_STARTING_EQUITY } from "@orbit/ui/lib/mock/seed";
 import { botSummary } from "@orbit/ui/lib/stats";
 import { CandleChart } from "./CandleChart";
 
@@ -16,10 +16,16 @@ import { CandleChart } from "./CandleChart";
  * (prop account only, never client funds). No invented "user just earned" ticker.
  */
 export function BotWidget() {
-  const { price, candles, direction, changePct } = useLiveBtc(36);
+  const { price: livePrice, candles, direction, changePct, status } = useLiveBtc(36);
   const [tab, setTab] = useState<"Trades" | "Positions">("Trades");
-  const summary = useMemo(() => botSummary(BOT_TRADES, PROP_STARTING_EQUITY, price), [price]);
-  const closed = BOT_TRADES.filter((t) => t.closedAt).slice(0, 6);
+  // Anchor the simulated trades once, on the first real price (rounded so they don't jump around).
+  const [anchor, setAnchor] = useState<number | null>(null);
+  if (livePrice != null && anchor == null) setAnchor(Math.round(livePrice / 50) * 50);
+  const trades = useMemo(() => (anchor ? makeBotTrades(anchor) : []), [anchor]);
+  const price = livePrice ?? 0;
+  const ready = livePrice != null && candles.length > 0;
+  const summary = useMemo(() => botSummary(trades, PROP_STARTING_EQUITY, price), [trades, price]);
+  const closed = trades.filter((t) => t.closedAt).slice(0, 6);
   const totalPnl = summary.realised + summary.unrealised;
 
   return (
@@ -33,7 +39,8 @@ export function BotWidget() {
           <div>
             <p className="text-sm font-semibold">Orbit trading bot</p>
             <p className="flex items-center gap-1.5 text-[11px] text-white/50">
-              <LiveDot /> Live · BTC/USD · 1m
+              <LiveDot color={status === "offline" ? "bg-warning" : "bg-cyan"} />
+              {status === "offline" ? "Reconnecting to price feed…" : `Live · BTC/USD · 1m · Coinbase${status === "polling" ? " (polling)" : ""}`}
             </p>
           </div>
         </div>
@@ -47,15 +54,21 @@ export function BotWidget() {
       <div className="flex flex-wrap items-end justify-between gap-2 px-4 pt-4 sm:px-5">
         <div>
           <p className="text-[11px] uppercase tracking-wider text-white/45">BTC / USD</p>
-          <FlashNumber value={price} className={cn("text-2xl font-bold sm:text-3xl", direction === "down" ? "text-[#ff4d6d]" : "text-white")}>
-            {fmtUsd(price)}
-          </FlashNumber>
+          {ready ? (
+            <FlashNumber value={price} className={cn("text-2xl font-bold sm:text-3xl", direction === "down" ? "text-[#ff4d6d]" : "text-white")}>
+              {fmtUsd(price)}
+            </FlashNumber>
+          ) : (
+            <Skeleton dark className="mt-1 h-8 w-44" />
+          )}
         </div>
-        <span className={cn("tabular rounded-md px-2 py-1 text-xs font-semibold", changePct >= 0 ? "bg-cyan/10 text-cyan" : "bg-[#ff4d6d]/10 text-[#ff4d6d]")}>{fmtPct(changePct)} (36m)</span>
+        {changePct != null && (
+          <span className={cn("tabular rounded-md px-2 py-1 text-xs font-semibold", changePct >= 0 ? "bg-cyan/10 text-cyan" : "bg-[#ff4d6d]/10 text-[#ff4d6d]")}>{fmtPct(changePct)} (24h)</span>
+        )}
       </div>
 
       <div className="px-2 pt-2 sm:px-3">
-        <CandleChart candles={candles} price={price} height={200} />
+        {ready ? <CandleChart candles={candles} price={price} height={200} /> : <Skeleton dark className="m-2 h-[180px]" />}
       </div>
 
       {/* equity */}
@@ -106,7 +119,7 @@ export function BotWidget() {
             </tbody>
           </table>
         </div>
-        <p className="mt-3 text-[10px] leading-relaxed text-white/35">Figures come from the bot&apos;s recorded trades on the firm&apos;s own account. Not client funds. Past performance does not guarantee future results.</p>
+        <p className="mt-3 text-[10px] leading-relaxed text-white/35">BTC price and chart are live from Coinbase. The bot&apos;s trades and P&amp;L are simulated and never use client funds. Past performance does not guarantee future results.</p>
       </div>
     </div>
   );

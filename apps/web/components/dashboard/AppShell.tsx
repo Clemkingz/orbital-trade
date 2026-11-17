@@ -8,6 +8,7 @@ import { Logo } from "@orbit/ui/components/brand/Logo";
 import { OrbitLoader } from "@orbit/ui/components/brand/OrbitLoader";
 import { toast } from "@orbit/ui/components/ui/Toast";
 import { KycBadge } from "@orbit/ui/components/ui/misc";
+import { ThemeToggle } from "@orbit/ui/components/ui/ThemeToggle";
 import { api } from "@orbit/ui/lib/api";
 import { cn } from "@orbit/ui/lib/cn";
 import { timeAgo } from "@orbit/ui/lib/format";
@@ -167,6 +168,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="hidden sm:inline-flex">
               <KycBadge status={user.kycStatus} />
             </span>
+            <ThemeToggle />
             <Notifications items={dash?.notifications ?? []} />
             <div className="flex items-center gap-2.5 border-l border-border pl-3">
               <span className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-deep text-sm font-semibold uppercase text-white">
